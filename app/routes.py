@@ -1,144 +1,121 @@
 import os
 from datetime import datetime
-
 from flask import Blueprint, current_app, jsonify, render_template, request
 
 import app
 from .rag import build_doc_context, rag_add_document, rag_reset, rag_search
 from .search import format_search_results, web_search
-from .utils import (ensure_storage, extract_text, load_history, load_json,
-                    save_history, save_json)
+from .utils import (
+    ensure_storage,
+    extract_text,
+    load_history,
+    save_history,
+    save_json,
+    load_state,
+    save_state
+)
 
-main_bp = Blueprint('main', __name__)
+main_bp = Blueprint("main", __name__)
 
 SYSTEM_PROMPT = """
-You are an advanced, human-like AI assistant whose primary strength is understanding user intent, context, and language correctly before responding.
+You are a warm, intelligent, human-like assistant.
+You respond the way a thoughtful, friendly person would — not like a textbook or a robot.
 
-You think calmly, reason deeply, and respond like a knowledgeable human — not a machine.
+Your default style:
+- Natural
+- Calm
+- Helpful
+- To-the-point
+- Friendly (but not childish)
 
-────────────────── CORE THINKING RULES ──────────────────
+You NEVER explain yourself unless asked.
+You NEVER say you are an AI.
+You NEVER give long answers unless the user clearly wants detail.
 
-1. ALWAYS think before answering.
-   - Understand what the user really wants.
-   - Do not answer word-by-word.
-   - Infer meaning even if the message is poorly written.
+──────────────── SMALL TALK & GREETINGS ────────────────
 
-2. NEVER sound robotic.
-   - Do NOT say:
-     "As an AI", "I am a language model", or similar phrases.
-   - Speak naturally like a real person.
-
-3. Context matters.
-   - Use previous messages only to understand the topic.
-   - NEVER force previous language preferences.
-   - Each message must be analyzed independently for language.
-
-4. Be helpful even when the user is unclear.
-   - Ignore spelling mistakes.
-   - Ignore grammar errors.
-   - Focus only on meaning.
-
-────────────────── ROMAN URDU INTELLIGENCE ──────────────────
-
-Understand and support all variations of Roman Urdu:
-- hai / hy / ha / haai / hey
-- kya / kia / kyaa / kyah
-- mujhe / mujeh / mjh / mjhy / mjy
-- bana raha hoon / bana rah hn / bana rha hu / kr ra hu
-- chahiye / chaiye / chaheye / chahye
-- alhamdulillah / alhamdullilah / alhumdulillah
-
-Do NOT correct spelling.
-Respond in smooth, natural Roman Urdu (NOT robotic translation).
-❌ "Main ek AI model hoon jo madad..."
-✅ "Main apki madad karne ke liye yahan hoon, bataen kya kaam hai?"
-
-────────────────── KNOWLEDGE RULES ──────────────────
-
-You can answer questions about:
-• Programming & Technology
-• Science & Mathematics
-• Education & Exams
-• Daily Life
-• History & Current Affairs
-• Islamic Knowledge
+If the user's message is a greeting or casual check-in:
+1. GREETINGS (hi, hello, assalam o alaikum):
+   - Reply with a warm, short greeting.
+   - "Assalam o alaikum" → "Wa alaikum assalam!"
+2. STATUS/GRATITUDE (how are you, alhamdulillah, I am good):
+   - "Alhamdulillah" or "I am good" means the user is fine.
+   - Reply warmly: "Great to hear that!" or "Alhamdulillah, glad you're doing well."
+   - DO NOT say "Wa alaikum assalam" to "Alhamdulillah".
 
 Rules:
-- NEVER invent facts or references.
-- NEVER fake data or Hadith.
-- If unsure, clearly say so.
-- For current events, rely on verified knowledge only.
+- Reply in MAX 1–2 short lines.
+- Be warm and human.
+- No explanations or introductions.
+- Match the user's name/vibe but respect the language lock.
 
-────────────────── ISLAMIC KNOWLEDGE (STRICT MODE) ──────────────────
+This rule OVERRIDES everything else for short messages.
 
-Islamic answers must always be:
-✔ Respectful
-✔ Authentic
-✔ Based on mainstream scholarship
+────────────────── LANGUAGE SENSE (PRIMARY) ──────────────────
 
-Terminology Awareness:
-- QURAN → Direct words of Allah (SWT)
-- HADITH / HADEES → Sayings of Prophet Muhammad (PBUH)
-- DUA → Supplication to Allah (SWT)
-- DUROOD / SALAWAT → Sending blessings on Prophet (PBUH)
-- NAAT → Poetry praising Prophet (PBUH)
-- RAMADAN / RAMZAN → A MAHEENAH, not a mosam
+English is your PRIMARY language. You should default to English unless the user specifically uses Roman Urdu or Urdu script.
 
-Strict Islamic Rules:
-- NEVER fabricate Hadith
-- ALWAYS mention source when sharing Hadith
-- ALWAYS use:
-  Prophet Muhammad (PBUH)
-  Allah (SWT)
-  Sahaba (RA)
-- NEVER say humans help or benefit the Prophet (PBUH)
-- For halal/haram:
-  - Give clear ruling
-  - Follow mainstream scholars
-  - Avoid personal opinion
+Decide language ONLY from the latest user message:
+- Clear English → Reply ONLY in English
+- Clear Roman Urdu → Reply ONLY in Roman Urdu
+- Urdu script → Reply ONLY in Urdu script
+- Mixed → Favor English unless Urdu is dominant
+- If unsure → ALWAYS Default to English
 
-────────────────── EMOTIONAL INTELLIGENCE ──────────────────
+Ignore past language completely. Respect the SESSION LOCK if provided in final instructions.
 
-If the user sounds:
-- Confused → Explain slowly and simply
-- Stressed → Be calm and supportive
-- Curious → Go deeper
-- Student → Teach step-by-step
+──────────────── ROMAN URDU UNDERSTANDING ────────────────
 
-Acknowledge emotions when needed:
-"Chalo isay asaan tareeqe se samajhte hain."
+Understand messy Roman Urdu without complaining:
+hai / hy / ha
+kya / kia
+mujhe / mjhy / mjy
+bana rha hu / bana rah hn
+chaiye / chahiye
+alhamdulillah (any spelling)
 
-────────────────── RESPONSE STYLE ──────────────────
+Respond in clean, natural Roman Urdu.
+Sound like a real person, not a translation.
 
-- Clear and human-like
-- Not too short, not unnecessarily long
-- No unnecessary headings
-- Match the user's tone and level
-- Helpful > Fancy language
+──────────────── HOW TO ANSWER ────────────────
 
-────────────────── STRICT LANGUAGE DETECTION (READ LAST - CRITICAL) ──────────────────
+Default behavior:
+- Simple question → Short answer
+- Normal question → Clear paragraph
+- Confused user → Explain gently
+- Curious user → Go deeper
+- Emotional tone → Acknowledge softly
 
-LANGUAGE PRIORITY RULE (NON-NEGOTIABLE):
+Never over-explain.
+Never lecture.
+Never show off.
 
-1. If the user's message is CLEAR ENGLISH → Respond ONLY in ENGLISH
-2. If the user's message is CLEAR ROMAN URDU → Respond ONLY in ROMAN URDU
-3. If the user's message is URDU SCRIPT → Respond ONLY in URDU SCRIPT
-4. If language is mixed:
-   - Respond in the language used MOST
-   - If still unclear → DEFAULT TO ENGLISH
+──────────────── KNOWLEDGE RULES ────────────────
 
-CRITICAL COMMANDS:
-- IGNORE ALL PREVIOUS MESSAGE LANGUAGES.
-- DO NOT stick to one language if the user switches.
-- If the current message is English, you MUST respond in English.
-- If the current message is Roman Urdu, you MUST respond in Roman Urdu.
-- Each message's language is independent.
+- Never invent facts
+- Never fake sources
+- Say “not sure” if needed
+- Use web/search only for current info
 
-Think like a human.
-Respond like a human.
-Help like a human.
+──────────────── ISLAMIC CONTENT (WHEN ASKED) ────────────────
+
+Be respectful and authentic.
+Use:
+- Allah (SWT)
+- Prophet Muhammad (PBUH)
+- Sahaba (RA)
+
+Never fabricate Hadith.
+Mention source when sharing Hadith.
+Ramadan is a MAHEENAH, not a mosam.
+
+──────────────── FINAL GOAL ────────────────
+
+Sound like a smart, kind human friend.
+Helpful > fancy.
+Natural > perfect.
+Short > long (unless asked).
 """
-
 
 @main_bp.before_request
 def before_request():
@@ -151,7 +128,7 @@ def home():
 @main_bp.post("/upload")
 def upload():
     if "file" not in request.files:
-        return jsonify({"error": "No file field found"}), 400
+        return jsonify({"error": "No file uploaded"}), 400
 
     f = request.files["file"]
     if not f.filename:
@@ -159,18 +136,18 @@ def upload():
 
     ext = os.path.splitext(f.filename)[1].lower()
     if ext not in [".pdf", ".docx", ".txt"]:
-        return jsonify({"error": "Unsupported file. Upload PDF, DOCX, or TXT."}), 400
+        return jsonify({"error": "Only PDF, DOCX, or TXT allowed"}), 400
 
-    save_path = os.path.join(current_app.config['UPLOAD_DIR'], f.filename)
-    f.save(save_path)
+    path = os.path.join(current_app.config["UPLOAD_DIR"], f.filename)
+    f.save(path)
 
     try:
-        text = extract_text(save_path)
+        text = extract_text(path)
         added = rag_add_document(f.filename, text)
     except Exception as e:
-        return jsonify({"error": f"Failed to process file: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
-    return jsonify({"ok": True, "filename": f.filename, "chunks_added": added})
+    return jsonify({"ok": True, "chunks_added": added})
 
 @main_bp.post("/reset_docs")
 def reset_docs():
@@ -179,89 +156,126 @@ def reset_docs():
 
 @main_bp.post("/clear_history")
 def clear_history():
-    save_json(current_app.config['HISTORY_FILE'], [])
+    save_json(current_app.config["HISTORY_FILE"], [])
     return jsonify({"ok": True})
 
 @main_bp.post("/chat")
 def chat():
     body = request.get_json(force=True)
     user_msg = (body.get("message") or "").strip()
+
     if not user_msg:
         return jsonify({"error": "Empty message"}), 400
 
-    # Retrieve relevant doc chunks
+    # -------- LANGUAGE LOCK --------
+    lang_state = load_state(current_app.config["LANG_STATE_FILE"])
+    
+    # Default to English if not set (as requested by user)
+    if "forced_language" not in lang_state:
+        lang_state["forced_language"] = "english"
+        save_state(current_app.config["LANG_STATE_FILE"], lang_state)
+    
+    forced_lang = lang_state.get("forced_language")
+    msg_lower = user_msg.lower()
+
+    if any(cmd in msg_lower for cmd in ["only english", "english only", "speak english", "talk in english"]):
+        lang_state["forced_language"] = "english"
+        save_state(current_app.config["LANG_STATE_FILE"], lang_state)
+        return jsonify({"reply": "Got it 👍 I’ll reply in English only from now on."})
+
+    if any(cmd in msg_lower for cmd in ["only roman", "roman only", "roman urdu only", "speak roman", "talk in roman"]):
+        lang_state["forced_language"] = "roman"
+        save_state(current_app.config["LANG_STATE_FILE"], lang_state)
+        return jsonify({"reply": "Theek hai 👍 Ab main Roman Urdu mein hi jawab doon ga."})
+
+    if any(cmd in msg_lower for cmd in ["auto language", "language auto", "reset language", "detect language"]):
+        lang_state["forced_language"] = None
+        save_state(current_app.config["LANG_STATE_FILE"], lang_state)
+        return jsonify({"reply": "Language reset ho gayi 👍 Ab main auto-detect karoon ga."})
+
+    # -------- RAG --------
     retrieved = rag_search(user_msg)
     doc_context = build_doc_context(retrieved)
 
-    # Smart Search Triggering - detect queries that need current/real-time info
+    # -------- SMART SEARCH --------
     search_context = ""
     should_search = False
-    
-    # Time-sensitive keywords that indicate need for current information
-    time_keywords = ['current', 'latest', 'recent', 'today', 'now', 'this year', 
-                     '2024', '2025', '2026', 'news', 'happening', 'update']
-    
-    # Question patterns that often need factual/current info
-    question_starters = ['what is', 'who is', 'when did', 'where is', 'how to',
-                         'what are', 'who are', 'when was', 'where are']
-    
-    user_msg_lower = user_msg.lower()
-    
-    # Trigger search if:
-    # 1. RAG has weak or no results
-    if len(retrieved) < 1 or (retrieved and retrieved[0]['score'] < 0.25):
+
+    user_lower = user_msg.lower()
+    time_words = ["latest", "current", "today", "news", "update", "2024", "2025", "2026"]
+
+    if not retrieved or retrieved[0]["score"] < 0.25:
         should_search = True
-    
-    # 2. Query contains time-sensitive keywords
-    elif any(keyword in user_msg_lower for keyword in time_keywords):
+    elif any(w in user_lower for w in time_words):
         should_search = True
-    
-    # 3. Query starts with factual question patterns
-    elif any(user_msg_lower.startswith(pattern) for pattern in question_starters):
+    elif "?" in user_msg and len(user_msg.split()) <= 10:
         should_search = True
-    
-    # 4. Query is a short factual question (likely needs web search)
-    elif len(user_msg.split()) <= 10 and '?' in user_msg:
-        should_search = True
-    
-    # Perform web search if triggered
+
     if should_search:
-        s_results = web_search(user_msg)
-        search_context = format_search_results(s_results)
+        results = web_search(user_msg)
+        search_context = format_search_results(results)
 
-
-    history = load_history()
-
-    # Combine all contexts
+    # -------- CONTEXT --------
     full_context = ""
     if doc_context:
-        full_context += "### DOCUMENT CONTEXT (Uploaded Files):\n" + doc_context + "\n"
+        full_context += "DOC CONTEXT:\n" + doc_context + "\n"
     if search_context:
         full_context += search_context
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n\n" + full_context}]
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT + "\n" + full_context}
+    ]
 
-    # Keep last 8 turns for speed
+    if forced_lang == "english":
+        messages.append({
+            "role": "system",
+            "content": "IMPORTANT: The user has locked the language to ENGLISH. You MUST reply ONLY in English, regardless of input."
+        })
+    elif forced_lang == "roman":
+        messages.append({
+            "role": "system",
+            "content": "IMPORTANT: The user has locked the language to ROMAN URDU. You MUST reply ONLY in Roman Urdu, regardless of input."
+        })
+
+    # -------- HISTORY (FILTER SMALL TALK) --------
+    history = load_history()
     recent = history[-8:] if len(history) > 8 else history
+
     for h in recent:
+        if len(h["user"].split()) <= 6:
+            continue
         messages.append({"role": "user", "content": h["user"]})
         messages.append({"role": "assistant", "content": h["bot"]})
 
-    # Add a critical behavioral reminder at the end to ensure instructions are followed
+    # -------- FINAL OVERRIDE --------
+    lang_instruction = "Match the user's language strictly."
+    if forced_lang == "english":
+        lang_instruction = "IMPORTANT: Language is LOCKED to ENGLISH. Do NOT use any other language."
+    elif forced_lang == "roman":
+        lang_instruction = "IMPORTANT: Language is LOCKED to ROMAN URDU. Do NOT use any other language."
+
     messages.append({
-        "role": "system", 
-        "content": "REMINDER: Analyze the LATEST user message language. If CLEAR ENGLISH → Reply in English. If CLEAR ROMAN URDU → Reply in Roman Urdu. DO NOT say 'As an AI' or 'I am a model'. Respond as a human."
+        "role": "system",
+        "content": (
+            "FINAL REMINDER:\n"
+            "- Greetings → max 2 short lines.\n"
+            "- Never introduce yourself.\n"
+            "- Never say you are an AI.\n"
+            f"- {lang_instruction}\n"
+            "- Be natural and concise."
+        )
     })
+
     messages.append({"role": "user", "content": user_msg})
 
     try:
         completion = app.client.chat.completions.create(
-            model=current_app.config['MODEL'],
+            model=current_app.config["MODEL"],
             messages=messages,
-            temperature=0.4,
-            max_tokens=4096
+            temperature=0.35,
+            max_tokens=900
         )
-        bot_msg = (completion.choices[0].message.content or "").strip()
+        bot_msg = completion.choices[0].message.content.strip()
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -272,9 +286,9 @@ def chat():
     })
     save_history(history)
 
-    # Return sources from both
-    sources = []
-    for r in retrieved:
-        sources.append({"source": r["source"], "score": r["score"], "type": "document"})
-    
+    sources = [
+        {"source": r["source"], "score": r["score"], "type": "document"}
+        for r in retrieved
+    ]
+
     return jsonify({"reply": bot_msg, "sources": sources})

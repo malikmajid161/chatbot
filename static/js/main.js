@@ -203,5 +203,5 @@ window.clearHistory = clearHistory;
 
 // Initial greeting
 if (chatContainer.children.length === 0) {
-    appendMessage("Welcome . Good to see you. How can I help today?", 'bot');
+    appendMessage("Welcome To Majid Ai chatbot . Good to see you. How can I help today?", 'bot');
 }

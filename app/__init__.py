@@ -24,6 +24,7 @@ def create_app():
     app.config['RAG_DIR'] = os.path.join(app.config['DATA_DIR'], "rag_index")
     app.config['FAISS_FILE'] = os.path.join(app.config['RAG_DIR'], "index.faiss")
     app.config['CHUNKS_FILE'] = os.path.join(app.config['RAG_DIR'], "chunks.json")
+    app.config['LANG_STATE_FILE'] = os.path.join(app.config['DATA_DIR'], "lang_state.json")
     
     # Models config
     app.config['MODEL'] = "llama-3.1-8b-instant"

@@ -41,6 +41,12 @@ def load_history():
 def save_history(history):
     save_json(current_app.config['HISTORY_FILE'], history)
 
+def load_state(path):
+    return load_json(path, {})
+
+def save_state(path, data):
+    save_json(path, data)
+
 def extract_text_from_pdf(filepath: str) -> str:
     reader = PdfReader(filepath)
     parts = []
