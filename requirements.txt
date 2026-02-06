@@ -1,9 +1,6 @@
 flask
+gunicorn
 python-dotenv
 groq
 pypdf
 docx2txt
-faiss-cpu
-sentence-transformers
-numpy
-gunicorn
