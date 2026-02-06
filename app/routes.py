@@ -268,6 +268,13 @@ def chat():
 
     messages.append({"role": "user", "content": user_msg})
 
+    # -------- SAFETY CHECK --------
+    if app.client is None:
+        return jsonify({
+            "error": "GROQ_API_KEY is missing. Please add it to your Railway project variables.",
+            "reply": "⚠️ System Error: My brain (API Key) is missing. Please add the GROQ_API_KEY to Railway variables to continue."
+        }), 500
+
     try:
         completion = app.client.chat.completions.create(
             model=current_app.config["MODEL"],
