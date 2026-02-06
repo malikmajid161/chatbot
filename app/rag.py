@@ -81,6 +81,8 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
     if k is None:
         k = current_app.config['TOP_K']
         
+    SIMILARITY_THRESHOLD = 0.20  # Ignore very low relevance matches
+    
     chunks_file = current_app.config['CHUNKS_FILE']
     chunk_objs = load_json(chunks_file, [])
     if not chunk_objs:
@@ -102,6 +104,11 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
     for rank, (i, s) in enumerate(zip(idxs, scores), start=1):
         if i < 0 or i >= len(chunk_objs):
             continue
+        
+        # Filter by threshold
+        if float(s) < SIMILARITY_THRESHOLD:
+            continue
+            
         item = chunk_objs[i].copy()
         item["score"] = float(s)
         item["rank"] = rank
