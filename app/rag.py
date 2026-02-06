@@ -53,11 +53,13 @@ def save_faiss_index(index):
 
 def rag_add_document(filename: str, full_text: str) -> int:
     """Adds document chunks to FAISS + chunks.json. Returns number of chunks added."""
+    print(f"[RAG] Adding document: {filename} ({len(full_text)} chars)")
     if not HAS_RAG_DEPS or app.embedder is None:
-        print("WARNING: RAG dependencies missing. Skipping document indexing.")
+        print("WARNING: RAG dependencies missing or embedder not initialized.")
         return 0
 
     chunks = chunk_text(full_text)
+    print(f"[RAG] Created {len(chunks)} chunks.")
     if not chunks:
         return 0
 
@@ -74,22 +76,27 @@ def rag_add_document(filename: str, full_text: str) -> int:
         })
 
     # embeddings
+    print("[RAG] Generating embeddings...")
     vecs = embed_texts([o["text"] for o in new_objs])
     if vecs is None:
+        print("[RAG] ERROR: Embedding failed (vecs is None)")
         return 0
         
     dim = vecs.shape[1]
     index = load_faiss_index(dim)
 
     index.add(vecs)
+    print(f"[RAG] Added to FAISS index. Total docs in index: {index.ntotal}")
 
     # persist
     chunk_objs.extend(new_objs)
     save_json(chunks_file, chunk_objs)
     save_faiss_index(index)
+    print("[RAG] Successfully saved index and chunks.")
     return len(new_objs)
 
 def rag_reset():
+    print("[RAG] Resetting all knowledge...")
     # wipe chunks + index
     save_json(current_app.config['CHUNKS_FILE'], [])
     faiss_file = current_app.config['FAISS_FILE']
@@ -108,6 +115,7 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
     chunks_file = current_app.config['CHUNKS_FILE']
     chunk_objs = load_json(chunks_file, [])
     if not chunk_objs:
+        print("[RAG] Search skipped: chunks.json is empty or missing.")
         return []
 
     # embed query
@@ -119,8 +127,10 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
     index = load_faiss_index(dim)
 
     if index is None or index.ntotal == 0:
+        print("[RAG] Search skipped: FAISS index is empty.")
         return []
 
+    print(f"[RAG] Searching index with {index.ntotal} items...")
     scores, idxs = index.search(qv, k)
     idxs = idxs[0].tolist()
     scores = scores[0].tolist()
@@ -138,6 +148,8 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
         item["score"] = float(s)
         item["rank"] = rank
         results.append(item)
+    
+    print(f"[RAG] Found {len(results)} matches above threshold {SIMILARITY_THRESHOLD}.")
     return results
 
 def build_doc_context(retrieved: List[Dict]) -> str:

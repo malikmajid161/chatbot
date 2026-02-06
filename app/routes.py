@@ -149,6 +149,25 @@ def upload():
 
     return jsonify({"ok": True, "chunks_added": added})
 
+@main_bp.get("/status")
+def status():
+    """Debug info for RAG and API status."""
+    from .rag import HAS_RAG_DEPS
+    import app
+    
+    rag_status = "Ready" if (HAS_RAG_DEPS and app.embedder is not None) else "Disabled"
+    if HAS_RAG_DEPS and app.embedder is None:
+        rag_status = "Embedder Not Initialized"
+    elif not HAS_RAG_DEPS:
+        rag_status = "Missing Libraries (faiss/numpy)"
+
+    return jsonify({
+        "api_client": "Connected" if app.client else "Missing Key",
+        "rag_support": rag_status,
+        "torch_version": os.popen("pip show torch | grep Version").read().strip() or "Not found",
+        "faiss_version": os.popen("pip show faiss-cpu | grep Version").read().strip() or "Not found"
+    })
+
 @main_bp.post("/reset_docs")
 def reset_docs():
     rag_reset()
@@ -194,7 +213,9 @@ def chat():
         return jsonify({"reply": "Language reset ho gayi 👍 Ab main auto-detect karoon ga."})
 
     # -------- RAG --------
+    print(f"[CHAT] Query: {user_msg}")
     retrieved = rag_search(user_msg)
+    print(f"[CHAT] RAG retrieved {len(retrieved)} matches.")
     doc_context = build_doc_context(retrieved)
 
     # -------- SMART SEARCH --------
