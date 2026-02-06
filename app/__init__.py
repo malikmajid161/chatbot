@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from groq import Groq
-from sentence_transformers import SentenceTransformer
 
 # Initialize extensions
 client = None
@@ -40,9 +39,17 @@ def create_app():
     else:
         print("WARNING: GROQ_API_KEY not found in environment")
         
-    # Initialize Embedder
-    # Lazy loading in routes if needed, but here is fine for now
-    embedder = SentenceTransformer(app.config['EMBED_MODEL_NAME'])
+    # Initialize Embedder (Optional for light deployment)
+    try:
+        from sentence_transformers import SentenceTransformer
+        embedder = SentenceTransformer(app.config['EMBED_MODEL_NAME'])
+        print("INFO: SentenceTransformer initialized successfully.")
+    except ImportError:
+        embedder = None
+        print("WARNING: sentence-transformers not found. RAG features will be disabled.")
+    except Exception as e:
+        embedder = None
+        print(f"WARNING: Failed to initialize SentenceTransformer: {e}")
 
     # Register routes
     from .routes import main_bp

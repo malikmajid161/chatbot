@@ -1,11 +1,19 @@
 import os
 import uuid
-import faiss
-import numpy as np
 from typing import List, Dict
 from flask import current_app
 import app
 from .utils import load_json, save_json
+
+# Optional imports for light deployment
+try:
+    import faiss
+    import numpy as np
+    HAS_RAG_DEPS = True
+except ImportError:
+    faiss = None
+    np = None
+    HAS_RAG_DEPS = False
 
 def chunk_text(text: str) -> List[str]:
     chunk_size = current_app.config['CHUNK_SIZE']
@@ -22,14 +30,16 @@ def chunk_text(text: str) -> List[str]:
         i += max(1, chunk_size - overlap)
     return chunks
 
-def embed_texts(texts: List[str]) -> np.ndarray:
+def embed_texts(texts: List[str]):
     # returns float32 matrix [n, d]
-    if app.embedder is None:
-        raise ValueError("Embedder is not initialized. Ensure create_app() has been called.")
+    if not HAS_RAG_DEPS or app.embedder is None:
+        return None
     vectors = app.embedder.encode(texts, normalize_embeddings=True)
     return np.array(vectors, dtype=np.float32)
 
 def load_faiss_index(dim: int):
+    if not HAS_RAG_DEPS:
+        return None
     faiss_file = current_app.config['FAISS_FILE']
     if os.path.exists(faiss_file):
         return faiss.read_index(faiss_file)
@@ -37,10 +47,16 @@ def load_faiss_index(dim: int):
     return faiss.IndexFlatIP(dim)
 
 def save_faiss_index(index):
+    if not HAS_RAG_DEPS or index is None:
+        return
     faiss.write_index(index, current_app.config['FAISS_FILE'])
 
 def rag_add_document(filename: str, full_text: str) -> int:
     """Adds document chunks to FAISS + chunks.json. Returns number of chunks added."""
+    if not HAS_RAG_DEPS or app.embedder is None:
+        print("WARNING: RAG dependencies missing. Skipping document indexing.")
+        return 0
+
     chunks = chunk_text(full_text)
     if not chunks:
         return 0
@@ -59,6 +75,9 @@ def rag_add_document(filename: str, full_text: str) -> int:
 
     # embeddings
     vecs = embed_texts([o["text"] for o in new_objs])
+    if vecs is None:
+        return 0
+        
     dim = vecs.shape[1]
     index = load_faiss_index(dim)
 
@@ -78,6 +97,9 @@ def rag_reset():
         os.remove(faiss_file)
 
 def rag_search(query: str, k: int = None) -> List[Dict]:
+    if not HAS_RAG_DEPS or app.embedder is None:
+        return []
+
     if k is None:
         k = current_app.config['TOP_K']
         
@@ -90,10 +112,13 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
 
     # embed query
     qv = embed_texts([query])
+    if qv is None:
+        return []
+        
     dim = qv.shape[1]
     index = load_faiss_index(dim)
 
-    if index.ntotal == 0:
+    if index is None or index.ntotal == 0:
         return []
 
     scores, idxs = index.search(qv, k)
@@ -116,6 +141,9 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
     return results
 
 def build_doc_context(retrieved: List[Dict]) -> str:
+    if not HAS_RAG_DEPS or app.embedder is None:
+        return "DOCUMENT CONTEXT: (RAG features are disabled in this deployment)"
+        
     if not retrieved:
         return "DOCUMENT CONTEXT: (no documents uploaded yet)"
     lines = ["DOCUMENT CONTEXT (top matches):"]
