@@ -8,5 +8,5 @@ docx2txt
 faiss-cpu
 sentence-transformers
 numpy<2.0.0
-torch==2.2.2
+torch>=2.4.0
 duckduckgo-search
