@@ -7,5 +7,6 @@ pypdf
 docx2txt
 faiss-cpu
 sentence-transformers
-numpy
+numpy<2.0.0
 torch==2.2.2
+duckduckgo-search

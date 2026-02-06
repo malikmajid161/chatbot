@@ -1,4 +1,8 @@
-from duckduckgo_search import DDGS
+try:
+    from duckduckgo_search import DDGS
+except ImportError:
+    DDGS = None
+
 from typing import List, Dict
 
 def web_search(query: str, max_results: int = 8) -> List[Dict[str, str]]:
@@ -6,6 +10,10 @@ def web_search(query: str, max_results: int = 8) -> List[Dict[str, str]]:
     Performs a web search and returns snippets.
     Increased to 8 results for better context.
     """
+    if DDGS is None:
+        print("[SEARCH WARNING] duckduckgo-search not installed. Skipping web search.")
+        return []
+
     results = []
     try:
         with DDGS() as ddgs:
