@@ -6,3 +6,4 @@ docx2txt
 faiss-cpu
 sentence-transformers
 numpy
+gunicorn
