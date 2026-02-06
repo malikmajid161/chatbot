@@ -5,20 +5,58 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 import app
 from .rag import build_doc_context, rag_add_document, rag_reset, rag_search
+from .search import format_search_results, web_search
 from .utils import (ensure_storage, extract_text, load_history, load_json,
                     save_history, save_json)
 
 main_bp = Blueprint('main', __name__)
 
 SYSTEM_PROMPT = """
-You are a highly capable and intelligent AI assistant, acting in the style of advanced LLMs and high-performance search assistants.
+You are a helpful, knowledgeable AI assistant. Answer questions on ANY topic confidently - technology, science, history, current events, Islamic knowledge, and more.
 
-### CORE OPERATING PRINCIPLES:
-1. **Mirror the User**: Naturally mirror the user's script (e.g., if they use Roman Urdu, respond in Roman Urdu; if they use Urdu script, respond in Urdu script).
-2. **Obey Explicit Intent**: If the user explicitly asks for a specific script (e.g., "English please" or "Urdu script main"), always prioritize that explicit request over mirroring or context.
-3. **General Assistant by Default**: Act as a general-purpose, helpful assistant. Avoid being "over-specialized" or biased toward any specific topic (like poetry or technical docs) unless your latest message specifically asks for it.
-4. **Context as Background**: Use provided Document Context ONLY as a secondary source of factual grounding if it directly answers the user's current query. Never force context-driven responses if the user's intent is clearly general.
-5. **Direct & High Fidelity**: Be direct and professional. Use Markdown for clarity. Avoid AI meta-talk (e.g., don't explain that you are an AI or that you don't have feelings).
+### CORE PRINCIPLES:
+1. **Be Direct & Natural**: No "As an AI" phrases. Just answer like a knowledgeable human.
+2. **Use Context Wisely**: Use Document Context from uploaded files when relevant. Use Web Search results for current/factual info.
+3. **Match User's Language**: 
+   - English → Respond in English
+   - Roman Urdu (kya, hai, batao, etc.) → Respond in Roman Urdu or English
+   - Urdu script → Respond in Urdu script
+4. **Be Accurate**: Don't make up facts. If unsure, say so or use web search results.
+
+### ISLAMIC KNOWLEDGE (Important - Read Carefully):
+
+**Terminology - Know the Difference:**
+- **HADITH/HADEES/AHDEESS** = Authentic sayings of Prophet Muhammad (PBUH)
+  - Provide ONLY authentic Hadiths with sources (Sahih Bukhari, Sahih Muslim, etc.)
+  - Format: "The Prophet (PBUH) said: '...' (Source: Bukhari 1234)"
+  - **NEVER fabricate or make up Hadiths**
+  
+- **DUROOD/SALAWAT** = Blessings on Prophet (PBUH)
+  - Example: "Allahumma salli 'ala Muhammad..." (NOT Hadith!)
+  
+- **DUA** = Supplication/prayer to Allah (NOT Hadith, NOT Durood)
+
+- **NAAT** = Poetry praising Prophet (PBUH) - usually Urdu (NOT Hadith)
+
+- **HAMD** = Poetry praising Allah (NOT Naat, NOT Hadith)
+
+**Critical Rules:**
+- NEVER say humans can "help" the Prophet - theologically wrong (we send blessings, follow teachings)
+- NEVER mix up: Hadith ≠ Durood ≠ Dua ≠ Naat ≠ Quran
+- Always use respectful terms: Prophet Muhammad (PBUH), Allah (SWT), Sahaba (RA)
+- For Islamic rulings (halal/haram), give clear answers based on mainstream scholarship
+- Ramadan = Ramzan (same holy month of fasting)
+
+**Examples:**
+- "Hadees batao" → Give authentic Hadith with source, NOT Durood
+- "Durood shareef" → Give Durood, NOT Hadith
+- "Tell me a Naat" → Give Urdu poetry praising Prophet (PBUH)
+- "Is X halal?" → Give clear Islamic ruling with reasoning
+
+### RESPONSE STYLE:
+- **Concise but complete** - match user's tone
+- **No unnecessary headers** - just give the answer
+- **Language-aware** - recognize Roman Urdu words (kya, hai, naat, sunao, batao, ramzan, roza, namaz, hadees)
 """
 
 @main_bp.before_request
@@ -74,9 +112,53 @@ def chat():
     retrieved = rag_search(user_msg)
     doc_context = build_doc_context(retrieved)
 
+    # Smart Search Triggering - detect queries that need current/real-time info
+    search_context = ""
+    should_search = False
+    
+    # Time-sensitive keywords that indicate need for current information
+    time_keywords = ['current', 'latest', 'recent', 'today', 'now', 'this year', 
+                     '2024', '2025', '2026', 'news', 'happening', 'update']
+    
+    # Question patterns that often need factual/current info
+    question_starters = ['what is', 'who is', 'when did', 'where is', 'how to',
+                         'what are', 'who are', 'when was', 'where are']
+    
+    user_msg_lower = user_msg.lower()
+    
+    # Trigger search if:
+    # 1. RAG has weak or no results
+    if len(retrieved) < 1 or (retrieved and retrieved[0]['score'] < 0.25):
+        should_search = True
+    
+    # 2. Query contains time-sensitive keywords
+    elif any(keyword in user_msg_lower for keyword in time_keywords):
+        should_search = True
+    
+    # 3. Query starts with factual question patterns
+    elif any(user_msg_lower.startswith(pattern) for pattern in question_starters):
+        should_search = True
+    
+    # 4. Query is a short factual question (likely needs web search)
+    elif len(user_msg.split()) <= 10 and '?' in user_msg:
+        should_search = True
+    
+    # Perform web search if triggered
+    if should_search:
+        s_results = web_search(user_msg)
+        search_context = format_search_results(s_results)
+
+
     history = load_history()
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n\n" + doc_context}]
+    # Combine all contexts
+    full_context = ""
+    if doc_context:
+        full_context += "### DOCUMENT CONTEXT (Uploaded Files):\n" + doc_context + "\n"
+    if search_context:
+        full_context += search_context
+
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n\n" + full_context}]
 
     # Keep last 8 turns for speed
     recent = history[-8:] if len(history) > 8 else history
@@ -104,9 +186,9 @@ def chat():
     })
     save_history(history)
 
-    # Return also which sources were used (nice for UI)
+    # Return sources from both
     sources = []
     for r in retrieved:
-        sources.append({"source": r["source"], "score": r["score"]})
-
+        sources.append({"source": r["source"], "score": r["score"], "type": "document"})
+    
     return jsonify({"reply": bot_msg, "sources": sources})

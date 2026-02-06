@@ -203,5 +203,5 @@ window.clearHistory = clearHistory;
 
 // Initial greeting
 if (chatContainer.children.length === 0) {
-    appendMessage("👋 Hi! I'm your RAG assistant. Upload a PDF/DOCX to get started.", 'bot');
+    appendMessage("Welcome . Good to see you. How can I help today?", 'bot');
 }

@@ -30,7 +30,7 @@ def create_app():
     app.config['EMBED_MODEL_NAME'] = "sentence-transformers/all-MiniLM-L6-v2"
     app.config['CHUNK_SIZE'] = 1900
     app.config['CHUNK_OVERLAP'] = 150
-    app.config['TOP_K'] = 6
+    app.config['TOP_K'] = 8
     
     # Initialize Groq client
     api_key = os.getenv("GROQ_API_KEY")
