@@ -239,13 +239,23 @@ def chat():
     # -------- CONTEXT --------
     full_context = ""
     if doc_context:
-        full_context += "DOC CONTEXT:\n" + doc_context + "\n"
+        full_context += "\n=== KNOWLEDGE BASE CONTEXT (UPLOADED DOCUMENTS) ===\n" + doc_context + "\n"
     if search_context:
-        full_context += search_context
+        full_context += "\n=== WEB SEARCH CONTEXT (FOR CURRENT/LATEST INFO) ===\n" + search_context + "\n"
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT + "\n" + full_context}
     ]
+
+    messages.append({
+        "role": "system",
+        "content": (
+            "INSTRUCTIONS FOR CONTEXT:\n"
+            "1. If 'KNOWLEDGE BASE CONTEXT' is provided, treat it as the absolute truth for specifically user-uploaded info.\n"
+            "2. If 'WEB SEARCH CONTEXT' is provided, use it for current events, news, or 2024-2025 facts.\n"
+            "3. If both are present, prioritize document context for specific questions and search for general ones."
+        )
+    })
 
     if forced_lang == "english":
         messages.append({

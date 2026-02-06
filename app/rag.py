@@ -110,7 +110,7 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
     if k is None:
         k = current_app.config['TOP_K']
         
-    SIMILARITY_THRESHOLD = 0.20  # Ignore very low relevance matches
+    SIMILARITY_THRESHOLD = 0.15  # Lowered from 0.20 to be more permissive
     
     chunks_file = current_app.config['CHUNKS_FILE']
     chunk_objs = load_json(chunks_file, [])
@@ -130,7 +130,7 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
         print("[RAG] Search skipped: FAISS index is empty.")
         return []
 
-    print(f"[RAG] Searching index with {index.ntotal} items...")
+    print(f"[RAG] Searching index with {index.ntotal} items (Threshold: {SIMILARITY_THRESHOLD})...")
     scores, idxs = index.search(qv, k)
     idxs = idxs[0].tolist()
     scores = scores[0].tolist()
@@ -149,7 +149,7 @@ def rag_search(query: str, k: int = None) -> List[Dict]:
         item["rank"] = rank
         results.append(item)
     
-    print(f"[RAG] Found {len(results)} matches above threshold {SIMILARITY_THRESHOLD}.")
+    print(f"[RAG] Found {len(results)} matches above threshold.")
     return results
 
 def build_doc_context(retrieved: List[Dict]) -> str:
