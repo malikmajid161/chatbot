@@ -4,7 +4,7 @@ import faiss
 import numpy as np
 from typing import List, Dict
 from flask import current_app
-from . import embedder
+import app
 from .utils import load_json, save_json
 
 def chunk_text(text: str) -> List[str]:
@@ -24,7 +24,9 @@ def chunk_text(text: str) -> List[str]:
 
 def embed_texts(texts: List[str]) -> np.ndarray:
     # returns float32 matrix [n, d]
-    vectors = embedder.encode(texts, normalize_embeddings=True)
+    if app.embedder is None:
+        raise ValueError("Embedder is not initialized. Ensure create_app() has been called.")
+    vectors = app.embedder.encode(texts, normalize_embeddings=True)
     return np.array(vectors, dtype=np.float32)
 
 def load_faiss_index(dim: int):

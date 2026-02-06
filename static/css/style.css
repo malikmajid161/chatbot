@@ -2,31 +2,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-    /* HSL Color Palette */
+    /* Premium Light Theme Color Palette */
     --hue: 220;
-    --bg-dark: hsl(var(--hue), 30%, 8%);
-    --bg-panel: hsl(var(--hue), 25%, 12%);
-    --bg-card: hsl(var(--hue), 25%, 16%);
+    --bg-dark: hsl(var(--hue), 20%, 98%);
+    --bg-panel: hsl(var(--hue), 30%, 96%);
+    --bg-card: hsl(var(--hue), 0%, 100%);
 
-    --text-main: hsl(var(--hue), 20%, 95%);
-    --text-muted: hsl(var(--hue), 15%, 65%);
+    --text-main: hsl(var(--hue), 30%, 20%);
+    --text-muted: hsl(var(--hue), 15%, 45%);
 
-    --accent-color: hsl(211, 42%, 83%);
-    --accent-hover: hsl(212, 60%, 66%);
-    --accent-glow: hsla(210, 100%, 60%, 0.4);
+    --accent-color: hsl(210, 80%, 55%);
+    --accent-hover: hsl(210, 80%, 45%);
+    --accent-glow: hsla(210, 100%, 60%, 0.15);
 
-    --success: hsl(148, 72%, 58%);
-    --error: hsl(0, 70%, 60%);
+    --success: hsl(148, 60%, 45%);
+    --error: hsl(0, 70%, 55%);
 
-    --border-light: hsla(var(--hue), 20%, 95%, 0.08);
-    --glass-bg: hsla(var(--hue), 30%, 10%, 0.7);
-    --glass-border: hsla(var(--hue), 20%, 95%, 0.1);
+    --border-light: hsla(var(--hue), 20%, 10%, 0.08);
+    --glass-bg: hsla(var(--hue), 30%, 100%, 0.7);
+    --glass-border: hsla(var(--hue), 20%, 0%, 0.1);
 
     --radius-lg: 24px;
     --radius-md: 16px;
     --radius-sm: 10px;
 
-    --shadow-lg: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
 }
 
 * {

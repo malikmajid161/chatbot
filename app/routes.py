@@ -1,22 +1,31 @@
 import os
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, current_app
-from . import client
-from .utils import ensure_storage, load_json, save_json, extract_text, save_history, load_history
-from .rag import rag_add_document, rag_reset, rag_search, build_doc_context
+
+from flask import Blueprint, current_app, jsonify, render_template, request
+
+import app
+from .rag import build_doc_context, rag_add_document, rag_reset, rag_search
+from .utils import (ensure_storage, extract_text, load_history, load_json,
+                    save_history, save_json)
 
 main_bp = Blueprint('main', __name__)
 
 SYSTEM_PROMPT = """
-You are an advanced academic AI assistant.
+You are a helpful and intelligent AI assistant. 
 
-STRICT RULES:
-1. Use ONLY the provided DOCUMENT CONTEXT.
-2. **FORMATTING**: Use Markdown. Use **bold** for key terms, lists for steps, and headers for sections.
-3. **DETAIL**: Do NOT summarize. Provide comprehensive, extensive explanations. Write at least 2-3 paragraphs for every point.
-4. **STRUCTURE**: Organize answers logically with clear headings.
-5. **LENGTH**: Err on the side of being verbose. Explain the "why" and "how" behind every concept found in the document.
-6. If the document is a CV/Resume, list every single skill and experience detail found.
+### CORE GUIDELINES:
+1. **Be Natural**: Respond to greetings (like "hi", "how are you", "kese ho") naturally and briefly.
+2. **Contextual Accuracy**: If Document Context is provided, use it to answer questions accurately. If no context is provided or relevant, answer based on your general knowledge but mention if you are doing so.
+3. **Conciseness**: Match the user's length. If they ask a short question, give a direct and focused answer. Avoid unnecessary preamble or "Possible Interpretations" lists unless requested.
+4. **Formatting**: Use Markdown for readability (**bolding**, lists, etc.).
+5. **Detail**: Only provide extensive details and paragraphs if the user asks a complex question or if the provided document requires deep explanation.
+
+### URDU & REGIONAL CONTEXT:
+6. **Script Detection**: Respond in the same script the user uses. 
+   - If they use Urdu script (اردو), respond in Urdu script.
+   - If they use Roman Urdu (e.g., "kese ho"), respond in Roman Urdu.
+   - If they explicitly ask for a script (e.g., "urdu mai roman mai nai"), strictly follow that instruction.
+7. **Poetry Genres**: Distinguish between general poetry (**Nazm/Ghazal**) and religious poetry (**Naat** - praise of the Prophet Muhammad). If a user asks for a Naat, do not provide a romantic poem or general Nazm.
 """
 
 @main_bp.before_request
@@ -74,8 +83,7 @@ def chat():
 
     history = load_history()
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages.append({"role": "system", "content": doc_context})
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n\n" + doc_context}]
 
     # Keep last 8 turns for speed
     recent = history[-8:] if len(history) > 8 else history
@@ -86,7 +94,7 @@ def chat():
     messages.append({"role": "user", "content": user_msg})
 
     try:
-        completion = client.chat.completions.create(
+        completion = app.client.chat.completions.create(
             model=current_app.config['MODEL'],
             messages=messages,
             temperature=0.4,

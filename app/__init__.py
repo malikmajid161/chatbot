@@ -1,6 +1,7 @@
 import os
-from flask import Flask
+
 from dotenv import load_dotenv
+from flask import Flask
 from groq import Groq
 from sentence_transformers import SentenceTransformer
 
@@ -14,7 +15,7 @@ def create_app():
     # Load environment variables
     load_dotenv()
     
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder='../templates', static_folder='../static')
     
     # Config
     app.config['DATA_DIR'] = "data"
