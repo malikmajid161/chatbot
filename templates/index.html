@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Groq AI Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="var(--accent-color)">
+          <path
+            d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z" />
+        </svg>
+        <span>Groq RAG</span>
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <div class="control-title">Knowledge Base</div>
+          <label class="file-upload-label" id="fileLabel" for="fileInput">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Upload Document</span>
+          </label>
+          <input id="fileInput" type="file" accept=".pdf,.docx,.txt" />
+
+          <button class="btn btn-outline btn-danger" onclick="resetDocs()" style="margin-top: 10px;">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Reset Knowledge
+          </button>
+        </div>
+
+        <div class="control-group">
+          <div class="control-title">Session</div>
+          <button class="btn btn-outline" onclick="clearHistory()">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Clear Chat History
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Chat -->
+    <main class="chat-area">
+      <header class="chat-header">
+        <h2>Assistant</h2>
+        <div class="status-check">
+          <div class="status-dot" id="statusDot"></div>
+          <span>Groq Llama 3.1</span>
+        </div>
+      </header>
+
+      <div id="chatContainer" class="messages-container">
+        <!-- Messages injected here via JS -->
+      </div>
+
+      <div class="input-area">
+        <div class="text-wrapper">
+          <textarea id="messageInput" placeholder="Ask anything about your documents..." rows="1"></textarea>
+        </div>
+        <button id="sendBtn" class="btn btn-primary">
+          <span>Send</span>
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <span id="toastMsg">Notification</span>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>
